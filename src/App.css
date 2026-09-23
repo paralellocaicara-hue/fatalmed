@@ -609,30 +609,37 @@
   letter-spacing: 0.02em;
 }
 
-.music {
+.music__btn {
   position: fixed;
   right: 1rem;
   bottom: 1rem;
   z-index: 40;
-}
-
-.music__btn {
   border: 1px solid var(--line);
-  background: rgba(13, 3, 7, 0.88);
+  background: rgba(13, 3, 7, 0.92);
   color: var(--gold);
-  padding: 0.55rem 0.85rem;
+  padding: 0.7rem 1rem;
   border-radius: 999px;
   cursor: pointer;
-  font-size: 0.75rem;
+  font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   backdrop-filter: blur(10px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.music__btn--on {
+  border-color: var(--gold);
+  color: var(--cream);
+  box-shadow: 0 0 20px rgba(196, 30, 58, 0.35);
 }
 
 .music__btn:hover {
   border-color: var(--gold);
   color: var(--cream);
+}
+
+.music {
+  display: none;
 }
 
 .card__tags {

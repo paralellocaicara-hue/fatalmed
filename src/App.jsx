@@ -39,45 +39,6 @@ function LangSwitch({ lang, onChange }) {
   )
 }
 
-function BgMusic({ enabled }) {
-  const audioRef = useRef(null)
-  const [muted, setMuted] = useState(false)
-
-  useEffect(() => {
-    const el = audioRef.current
-    if (!el || !enabled) return
-    el.volume = 0.45
-    el.loop = true
-    const play = () => {
-      el.play().catch(() => {})
-    }
-    play()
-    return () => {
-      el.pause()
-    }
-  }, [enabled])
-
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.muted = muted
-  }, [muted])
-
-  if (!enabled) return null
-
-  return (
-    <div className="music">
-      <audio ref={audioRef} src={AUDIO_SRC} preload="auto" loop playsInline />
-      <button
-        type="button"
-        className="music__btn"
-        onClick={() => setMuted((m) => !m)}
-        aria-label={muted ? 'Unmute' : 'Mute'}
-      >
-        {muted ? '♪ off' : '♪ on'}
-      </button>
-    </div>
-  )
-}
-
 function AgeGate({ t, lang, onLang, onConfirm }) {
   return (
     <div className="gate">
@@ -157,6 +118,9 @@ export default function App() {
   const [lang, setLang] = useState('pt')
   const [city, setCity] = useState('todas')
   const [q, setQ] = useState('')
+  const [musicOn, setMusicOn] = useState(false)
+  const [muted, setMuted] = useState(false)
+  const audioRef = useRef(null)
   const gridRef = useRef(null)
 
   const t = UI[lang]
@@ -179,9 +143,51 @@ export default function App() {
           : 'FatalMed — CDE · Foz · Fronteira'
   }, [lang])
 
+  useEffect(() => {
+    const el = audioRef.current
+    if (!el) return
+    el.loop = true
+    el.volume = 0.55
+    el.muted = muted
+  }, [muted])
+
+  const startMusic = () => {
+    const el = audioRef.current
+    if (!el) return
+    el.loop = true
+    el.volume = 0.55
+    el.muted = false
+    setMuted(false)
+    const tryPlay = () => {
+      el.play()
+        .then(() => setMusicOn(true))
+        .catch(() => setMusicOn(false))
+    }
+    if (el.readyState >= 2) tryPlay()
+    else {
+      el.load()
+      el.addEventListener('canplay', tryPlay, { once: true })
+      tryPlay()
+    }
+  }
+
   const confirmAge = () => {
     sessionStorage.setItem(AGE_KEY, '1')
+    startMusic()
     setAllowed(true)
+  }
+
+  const toggleMusic = () => {
+    const el = audioRef.current
+    if (!el) return
+    if (!musicOn || el.paused) {
+      startMusic()
+      return
+    }
+    setMuted((m) => {
+      el.muted = !m
+      return !m
+    })
   }
 
   const filtered = useMemo(() => {
@@ -220,119 +226,135 @@ export default function App() {
     )
   }, [allowed, filtered, lang])
 
-  if (!allowed) {
-    return (
-      <AgeGate t={t} lang={lang} onLang={setLang} onConfirm={confirmAge} />
-    )
-  }
-
   const resultLabel = filtered.length === 1 ? t.results : t.resultsPlural
+  const musicLabel = !musicOn ? '▶ Música' : muted ? '♪ Off' : '♪ On'
 
   return (
-    <div className="page">
-      <div className="atmos" aria-hidden="true" />
-      <BgMusic enabled={allowed} />
+    <>
+      <audio
+        ref={audioRef}
+        src={AUDIO_SRC}
+        preload="auto"
+        loop
+        playsInline
+      />
 
-      <header className="top">
-        <a className="top__brand" href="#topo">
-          <Logo size={34} />
-        </a>
-        <nav className="top__nav">
-          <a href="#lista">{t.navProfiles}</a>
-          <a href="#cidades">{t.navCities}</a>
-          <a href="#aviso">{t.navNotice}</a>
-        </nav>
-        <LangSwitch lang={lang} onChange={setLang} />
-      </header>
+      {!allowed ? (
+        <AgeGate t={t} lang={lang} onLang={setLang} onConfirm={confirmAge} />
+      ) : (
+        <div className="page">
+          <div className="atmos" aria-hidden="true" />
 
-      <main id="topo">
-        <section className="hero">
-          <p className="hero__kicker">{t.heroKicker}</p>
-          <div className="hero__brand">
-            <Logo size={64} className="hero__logo" />
-          </div>
-          <p className="hero__lead">
-            {t.heroLeadBefore}{' '}
-            <strong>Ciudad del Este</strong>, <strong>Foz do Iguaçu</strong>,
-            Puerto Iguazú & Hernandarias. {t.heroLeadAfter}
-          </p>
-          <div className="hero__meta">
-            <span>
-              {PROFILES.length} {t.metaProfiles}
-            </span>
-            <span>{t.metaUpdated}</span>
-            <span>18+</span>
-          </div>
-        </section>
+          <button
+            type="button"
+            className={`music__btn ${musicOn && !muted ? 'music__btn--on' : ''}`}
+            onClick={toggleMusic}
+          >
+            {musicLabel}
+          </button>
 
-        <section className="filters" id="cidades">
-          <div className="filters__cities" role="tablist">
-            {cities.map((c) => (
-              <button
-                key={c.id}
-                type="button"
-                role="tab"
-                aria-selected={city === c.id}
-                className={city === c.id ? 'chip chip--on' : 'chip'}
-                onClick={() => setCity(c.id)}
-              >
-                {c.label}
-              </button>
-            ))}
-          </div>
-          <label className="search">
-            <span className="sr-only">Search</span>
-            <input
-              type="search"
-              placeholder={t.searchPlaceholder}
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-            />
-          </label>
-        </section>
+          <header className="top">
+            <a className="top__brand" href="#topo">
+              <Logo size={34} />
+            </a>
+            <nav className="top__nav">
+              <a href="#lista">{t.navProfiles}</a>
+              <a href="#cidades">{t.navCities}</a>
+              <a href="#aviso">{t.navNotice}</a>
+            </nav>
+            <LangSwitch lang={lang} onChange={setLang} />
+          </header>
 
-        <section className="grid-wrap" id="lista">
-          <div className="grid-head">
-            <h2>{t.gridTitle}</h2>
-            <p>
-              {filtered.length} {resultLabel}
-              {city !== 'todas' ? ` · ${t.cities[city]}` : ''}
-            </p>
-          </div>
+          <main id="topo">
+            <section className="hero">
+              <p className="hero__kicker">{t.heroKicker}</p>
+              <div className="hero__brand">
+                <Logo size={64} className="hero__logo" />
+              </div>
+              <p className="hero__lead">
+                {t.heroLeadBefore}{' '}
+                <strong>Ciudad del Este</strong>, <strong>Foz do Iguaçu</strong>,
+                Puerto Iguazú & Hernandarias. {t.heroLeadAfter}
+              </p>
+              <div className="hero__meta">
+                <span>
+                  {PROFILES.length} {t.metaProfiles}
+                </span>
+                <span>{t.metaUpdated}</span>
+                <span>18+</span>
+              </div>
+            </section>
 
-          {filtered.length === 0 ? (
-            <p className="empty">{t.empty}</p>
-          ) : (
-            <div className="grid" ref={gridRef}>
-              {filtered.map((p, i) => (
-                <ProfileCard
-                  key={p.id}
-                  profile={p}
-                  index={i}
-                  lang={lang}
-                  t={t}
-                  cityLabel={t.cities[p.city]}
+            <section className="filters" id="cidades">
+              <div className="filters__cities" role="tablist">
+                {cities.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={city === c.id}
+                    className={city === c.id ? 'chip chip--on' : 'chip'}
+                    onClick={() => setCity(c.id)}
+                  >
+                    {c.label}
+                  </button>
+                ))}
+              </div>
+              <label className="search">
+                <span className="sr-only">Search</span>
+                <input
+                  type="search"
+                  placeholder={t.searchPlaceholder}
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
                 />
-              ))}
-            </div>
-          )}
-        </section>
+              </label>
+            </section>
 
-        <section className="notice" id="aviso">
-          <h2>{t.noticeTitle}</h2>
-          <ul>
-            {t.noticeItems.map((item) => (
-              <li key={item}>{item}</li>
-            ))}
-          </ul>
-        </section>
-      </main>
+            <section className="grid-wrap" id="lista">
+              <div className="grid-head">
+                <h2>{t.gridTitle}</h2>
+                <p>
+                  {filtered.length} {resultLabel}
+                  {city !== 'todas' ? ` · ${t.cities[city]}` : ''}
+                </p>
+              </div>
 
-      <footer className="foot">
-        <Logo size={28} />
-        <span>{t.footRegion}</span>
-        <span>© {new Date().getFullYear()}</span>
-      </footer>
-    </div>
+              {filtered.length === 0 ? (
+                <p className="empty">{t.empty}</p>
+              ) : (
+                <div className="grid" ref={gridRef}>
+                  {filtered.map((p, i) => (
+                    <ProfileCard
+                      key={p.id}
+                      profile={p}
+                      index={i}
+                      lang={lang}
+                      t={t}
+                      cityLabel={t.cities[p.city]}
+                    />
+                  ))}
+                </div>
+              )}
+            </section>
+
+            <section className="notice" id="aviso">
+              <h2>{t.noticeTitle}</h2>
+              <ul>
+                {t.noticeItems.map((item) => (
+                  <li key={item}>{item}</li>
+                ))}
+              </ul>
+            </section>
+          </main>
+
+          <footer className="foot">
+            <Logo size={28} />
+            <span>{t.footRegion}</span>
+            <span>© {new Date().getFullYear()}</span>
+          </footer>
+        </div>
+      )}
+    </>
   )
 }
