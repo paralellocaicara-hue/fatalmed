@@ -1,77 +1,54 @@
-/** Player global — fora do React pra nao perder o audio no remount */
-const CANDIDATES = ['/audio/bg.mp3', '/bg.mp3']
+import bgUrl from './assets/bg.mp3?url'
 
-let audio
-let unlocked = false
-let srcIndex = 0
-
-function ensure() {
-  if (!audio) {
-    audio = new Audio(CANDIDATES[srcIndex])
-    audio.loop = true
-    audio.preload = 'auto'
-    audio.volume = 0.6
-    audio.setAttribute('playsinline', 'true')
-    audio.addEventListener('error', () => {
-      if (srcIndex < CANDIDATES.length - 1) {
-        srcIndex += 1
-        audio.src = CANDIDATES[srcIndex]
-        audio.load()
-      }
-    })
+function el() {
+  let a = document.getElementById('fm-bg')
+  if (!a) {
+    a = document.createElement('audio')
+    a.id = 'fm-bg'
+    a.loop = true
+    a.playsInline = true
+    a.preload = 'auto'
+    document.body.appendChild(a)
   }
-  return audio
-}
-
-export function getAudio() {
-  return ensure()
+  if (a.getAttribute('data-src') !== bgUrl) {
+    a.src = bgUrl
+    a.setAttribute('data-src', bgUrl)
+  }
+  return a
 }
 
 export function isMusicPlaying() {
-  const a = ensure()
-  return unlocked && !a.paused && !a.muted
+  const a = document.getElementById('fm-bg')
+  return !!(a && !a.paused && !a.muted)
 }
 
 export async function playMusic() {
-  const a = ensure()
+  const a = el()
+  a.loop = true
+  a.volume = 0.55
   a.muted = false
-  a.volume = 0.6
   try {
     await a.play()
-    unlocked = true
     return true
   } catch (err) {
     console.warn('[fatalmed audio]', err)
-    if (srcIndex < CANDIDATES.length - 1) {
-      srcIndex += 1
-      a.src = CANDIDATES[srcIndex]
-      a.load()
-      try {
-        await a.play()
-        unlocked = true
-        return true
-      } catch (e2) {
-        console.warn('[fatalmed audio fallback]', e2)
-      }
-    }
     return false
   }
 }
 
 export function pauseMusic() {
-  ensure().pause()
+  const a = document.getElementById('fm-bg')
+  if (a) a.pause()
 }
 
-export function toggleMute() {
-  const a = ensure()
-  a.muted = !a.muted
-  return a.muted
-}
-
-export function setMuted(v) {
-  ensure().muted = !!v
-}
-
-export function preloadMusic() {
-  ensure().load()
+export function toggleMusic() {
+  const a = el()
+  if (a.paused) {
+    a.muted = false
+    a.volume = 0.55
+    a.play().catch((e) => console.warn('[fatalmed audio]', e))
+    return true
+  }
+  a.pause()
+  return false
 }

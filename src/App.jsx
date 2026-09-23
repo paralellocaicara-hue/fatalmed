@@ -3,13 +3,7 @@ import gsap from 'gsap'
 import { PROFILES } from './data'
 import { CITY_IDS, LANGS, UI, formatPrices } from './i18n'
 import Logo from './Logo'
-import {
-  playMusic,
-  pauseMusic,
-  preloadMusic,
-  getAudio,
-  isMusicPlaying,
-} from './audioEngine'
+import { playMusic, toggleMusic, isMusicPlaying } from './audioEngine'
 import './App.css'
 
 const AGE_KEY = 'fatalmed_age_ok'
@@ -42,18 +36,6 @@ function LangSwitch({ lang, onChange }) {
         </button>
       ))}
     </div>
-  )
-}
-
-function MusicFab({ playing, muted, onToggle }) {
-  return (
-    <button
-      type="button"
-      className={`music__btn ${playing && !muted ? 'music__btn--on' : ''} ${!playing ? 'music__btn--pulse' : ''}`}
-      onClick={onToggle}
-    >
-      {!playing ? '▶ Tocar música' : muted ? '♪ Mutado' : '♪ Música on'}
-    </button>
   )
 }
 
@@ -137,8 +119,6 @@ export default function App() {
   const [city, setCity] = useState('todas')
   const [q, setQ] = useState('')
   const [musicOn, setMusicOn] = useState(false)
-  const [muted, setMuted] = useState(false)
-  const [musicErr, setMusicErr] = useState('')
   const gridRef = useRef(null)
 
   const t = UI[lang]
@@ -146,22 +126,8 @@ export default function App() {
 
   useEffect(() => {
     setLang(detectLang())
-    preloadMusic()
     if (sessionStorage.getItem(AGE_KEY) === '1') setAllowed(true)
-    const a = getAudio()
-    const onPlay = () => setMusicOn(true)
-    const onPause = () => {
-      if (!a.muted) setMusicOn(false)
-    }
-    a.addEventListener('playing', onPlay)
-    a.addEventListener('pause', onPause)
-    a.addEventListener('error', () =>
-      setMusicErr('Arquivo de áudio não encontrado (public/audio/bg.mp3)')
-    )
-    return () => {
-      a.removeEventListener('playing', onPlay)
-      a.removeEventListener('pause', onPause)
-    }
+    setMusicOn(isMusicPlaying())
   }, [])
 
   useEffect(() => {
@@ -176,31 +142,16 @@ export default function App() {
           : 'FatalMed — CDE · Foz · Fronteira'
   }, [lang])
 
-  const startMusic = async () => {
-    setMusicErr('')
-    const ok = await playMusic()
-    setMusicOn(ok && isMusicPlaying())
-    setMuted(false)
-    if (!ok) {
-      setMusicErr('Clique de novo em ▶ Tocar música (bloqueio do navegador)')
-    }
-    return ok
-  }
-
   const confirmAge = async () => {
     sessionStorage.setItem(AGE_KEY, '1')
-    await startMusic()
+    const ok = await playMusic()
+    setMusicOn(ok)
     setAllowed(true)
   }
 
-  const onMusicToggle = async () => {
-    if (!musicOn || getAudio().paused) {
-      await startMusic()
-      return
-    }
-    pauseMusic()
-    setMusicOn(false)
-    setMuted(false)
+  const onMusicClick = () => {
+    const playing = toggleMusic()
+    setMusicOn(playing)
   }
 
   const filtered = useMemo(() => {
@@ -241,124 +192,125 @@ export default function App() {
 
   const resultLabel = filtered.length === 1 ? t.results : t.resultsPlural
 
+  if (!allowed) {
+    return <AgeGate t={t} lang={lang} onLang={setLang} onConfirm={confirmAge} />
+  }
+
   return (
-    <>
-      <MusicFab playing={musicOn} muted={muted} onToggle={onMusicToggle} />
-      {musicErr ? <p className="music__err">{musicErr}</p> : null}
+    <div className="page">
+      <div className="atmos" aria-hidden="true" />
 
-      {!allowed ? (
-        <AgeGate t={t} lang={lang} onLang={setLang} onConfirm={confirmAge} />
-      ) : (
-        <div className="page">
-          <div className="atmos" aria-hidden="true" />
-
-          <header className="top">
-            <a className="top__brand" href="#topo">
-              <Logo size={34} />
-            </a>
-            <nav className="top__nav">
-              <a href="#lista">{t.navProfiles}</a>
-              <a href="#cidades">{t.navCities}</a>
-              <a href="#aviso">{t.navNotice}</a>
-            </nav>
-            <LangSwitch lang={lang} onChange={setLang} />
-          </header>
-
-          <main id="topo">
-            <section className="hero">
-              <p className="hero__kicker">{t.heroKicker}</p>
-              <div className="hero__brand">
-                <Logo size={64} className="hero__logo" />
-              </div>
-              <p className="hero__lead">
-                {t.heroLeadBefore}{' '}
-                <strong>Ciudad del Este</strong>, <strong>Foz do Iguaçu</strong>,
-                Puerto Iguazú & Hernandarias. {t.heroLeadAfter}
-              </p>
-              {!musicOn ? (
-                <button type="button" className="btn btn--solid hero__music" onClick={startMusic}>
-                  ▶ Tocar música
-                </button>
-              ) : null}
-              <div className="hero__meta">
-                <span>
-                  {PROFILES.length} {t.metaProfiles}
-                </span>
-                <span>{t.metaUpdated}</span>
-                <span>18+</span>
-              </div>
-            </section>
-
-            <section className="filters" id="cidades">
-              <div className="filters__cities" role="tablist">
-                {cities.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={city === c.id}
-                    className={city === c.id ? 'chip chip--on' : 'chip'}
-                    onClick={() => setCity(c.id)}
-                  >
-                    {c.label}
-                  </button>
-                ))}
-              </div>
-              <label className="search">
-                <span className="sr-only">Search</span>
-                <input
-                  type="search"
-                  placeholder={t.searchPlaceholder}
-                  value={q}
-                  onChange={(e) => setQ(e.target.value)}
-                />
-              </label>
-            </section>
-
-            <section className="grid-wrap" id="lista">
-              <div className="grid-head">
-                <h2>{t.gridTitle}</h2>
-                <p>
-                  {filtered.length} {resultLabel}
-                  {city !== 'todas' ? ` · ${t.cities[city]}` : ''}
-                </p>
-              </div>
-
-              {filtered.length === 0 ? (
-                <p className="empty">{t.empty}</p>
-              ) : (
-                <div className="grid" ref={gridRef}>
-                  {filtered.map((p, i) => (
-                    <ProfileCard
-                      key={p.id}
-                      profile={p}
-                      index={i}
-                      lang={lang}
-                      t={t}
-                      cityLabel={t.cities[p.city]}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-
-            <section className="notice" id="aviso">
-              <h2>{t.noticeTitle}</h2>
-              <ul>
-                {t.noticeItems.map((item) => (
-                  <li key={item}>{item}</li>
-                ))}
-              </ul>
-            </section>
-          </main>
-
-          <footer className="foot">
-            <Logo size={28} />
-            <span>{t.footRegion}</span>
-            <span>© {new Date().getFullYear()}</span>
-          </footer>
+      <header className="top">
+        <a className="top__brand" href="#topo">
+          <Logo size={34} />
+        </a>
+        <nav className="top__nav">
+          <a href="#lista">{t.navProfiles}</a>
+          <a href="#cidades">{t.navCities}</a>
+          <a href="#aviso">{t.navNotice}</a>
+        </nav>
+        <div className="top__right">
+          <button
+            type="button"
+            className="music__toggle"
+            onClick={onMusicClick}
+            title="Música"
+            aria-label="Música"
+          >
+            {musicOn ? '♪' : '▶'}
+          </button>
+          <LangSwitch lang={lang} onChange={setLang} />
         </div>
-      )}
-    </>
+      </header>
+
+      <main id="topo">
+        <section className="hero">
+          <p className="hero__kicker">{t.heroKicker}</p>
+          <div className="hero__brand">
+            <Logo size={64} className="hero__logo" />
+          </div>
+          <p className="hero__lead">
+            {t.heroLeadBefore}{' '}
+            <strong>Ciudad del Este</strong>, <strong>Foz do Iguaçu</strong>,
+            Puerto Iguazú & Hernandarias. {t.heroLeadAfter}
+          </p>
+          <div className="hero__meta">
+            <span>
+              {PROFILES.length} {t.metaProfiles}
+            </span>
+            <span>{t.metaUpdated}</span>
+            <span>18+</span>
+          </div>
+        </section>
+
+        <section className="filters" id="cidades">
+          <div className="filters__cities" role="tablist">
+            {cities.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                role="tab"
+                aria-selected={city === c.id}
+                className={city === c.id ? 'chip chip--on' : 'chip'}
+                onClick={() => setCity(c.id)}
+              >
+                {c.label}
+              </button>
+            ))}
+          </div>
+          <label className="search">
+            <span className="sr-only">Search</span>
+            <input
+              type="search"
+              placeholder={t.searchPlaceholder}
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+            />
+          </label>
+        </section>
+
+        <section className="grid-wrap" id="lista">
+          <div className="grid-head">
+            <h2>{t.gridTitle}</h2>
+            <p>
+              {filtered.length} {resultLabel}
+              {city !== 'todas' ? ` · ${t.cities[city]}` : ''}
+            </p>
+          </div>
+
+          {filtered.length === 0 ? (
+            <p className="empty">{t.empty}</p>
+          ) : (
+            <div className="grid" ref={gridRef}>
+              {filtered.map((p, i) => (
+                <ProfileCard
+                  key={p.id}
+                  profile={p}
+                  index={i}
+                  lang={lang}
+                  t={t}
+                  cityLabel={t.cities[p.city]}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="notice" id="aviso">
+          <h2>{t.noticeTitle}</h2>
+          <ul>
+            {t.noticeItems.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      </main>
+
+      <footer className="foot">
+        <Logo size={28} />
+        <span>{t.footRegion}</span>
+        <span>© {new Date().getFullYear()}</span>
+      </footer>
+    </div>
   )
 }

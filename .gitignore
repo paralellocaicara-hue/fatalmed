@@ -27,3 +27,5 @@ dist-ssr
 public/audio/
 *.mp3
 *.MP3
+
+!src/assets/bg.mp3
