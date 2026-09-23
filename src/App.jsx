@@ -3,11 +3,17 @@ import gsap from 'gsap'
 import { PROFILES } from './data'
 import { CITY_IDS, LANGS, UI, formatPrices } from './i18n'
 import Logo from './Logo'
+import {
+  playMusic,
+  pauseMusic,
+  preloadMusic,
+  getAudio,
+  isMusicPlaying,
+} from './audioEngine'
 import './App.css'
 
 const AGE_KEY = 'fatalmed_age_ok'
 const LANG_KEY = 'fatalmed_lang'
-const AUDIO_SRC = '/audio/bg.mp3'
 
 function detectLang() {
   const saved = localStorage.getItem(LANG_KEY)
@@ -36,6 +42,18 @@ function LangSwitch({ lang, onChange }) {
         </button>
       ))}
     </div>
+  )
+}
+
+function MusicFab({ playing, muted, onToggle }) {
+  return (
+    <button
+      type="button"
+      className={`music__btn ${playing && !muted ? 'music__btn--on' : ''} ${!playing ? 'music__btn--pulse' : ''}`}
+      onClick={onToggle}
+    >
+      {!playing ? '▶ Tocar música' : muted ? '♪ Mutado' : '♪ Música on'}
+    </button>
   )
 }
 
@@ -120,7 +138,7 @@ export default function App() {
   const [q, setQ] = useState('')
   const [musicOn, setMusicOn] = useState(false)
   const [muted, setMuted] = useState(false)
-  const audioRef = useRef(null)
+  const [musicErr, setMusicErr] = useState('')
   const gridRef = useRef(null)
 
   const t = UI[lang]
@@ -128,7 +146,22 @@ export default function App() {
 
   useEffect(() => {
     setLang(detectLang())
+    preloadMusic()
     if (sessionStorage.getItem(AGE_KEY) === '1') setAllowed(true)
+    const a = getAudio()
+    const onPlay = () => setMusicOn(true)
+    const onPause = () => {
+      if (!a.muted) setMusicOn(false)
+    }
+    a.addEventListener('playing', onPlay)
+    a.addEventListener('pause', onPause)
+    a.addEventListener('error', () =>
+      setMusicErr('Arquivo de áudio não encontrado (public/audio/bg.mp3)')
+    )
+    return () => {
+      a.removeEventListener('playing', onPlay)
+      a.removeEventListener('pause', onPause)
+    }
   }, [])
 
   useEffect(() => {
@@ -143,51 +176,31 @@ export default function App() {
           : 'FatalMed — CDE · Foz · Fronteira'
   }, [lang])
 
-  useEffect(() => {
-    const el = audioRef.current
-    if (!el) return
-    el.loop = true
-    el.volume = 0.55
-    el.muted = muted
-  }, [muted])
-
-  const startMusic = () => {
-    const el = audioRef.current
-    if (!el) return
-    el.loop = true
-    el.volume = 0.55
-    el.muted = false
+  const startMusic = async () => {
+    setMusicErr('')
+    const ok = await playMusic()
+    setMusicOn(ok && isMusicPlaying())
     setMuted(false)
-    const tryPlay = () => {
-      el.play()
-        .then(() => setMusicOn(true))
-        .catch(() => setMusicOn(false))
+    if (!ok) {
+      setMusicErr('Clique de novo em ▶ Tocar música (bloqueio do navegador)')
     }
-    if (el.readyState >= 2) tryPlay()
-    else {
-      el.load()
-      el.addEventListener('canplay', tryPlay, { once: true })
-      tryPlay()
-    }
+    return ok
   }
 
-  const confirmAge = () => {
+  const confirmAge = async () => {
     sessionStorage.setItem(AGE_KEY, '1')
-    startMusic()
+    await startMusic()
     setAllowed(true)
   }
 
-  const toggleMusic = () => {
-    const el = audioRef.current
-    if (!el) return
-    if (!musicOn || el.paused) {
-      startMusic()
+  const onMusicToggle = async () => {
+    if (!musicOn || getAudio().paused) {
+      await startMusic()
       return
     }
-    setMuted((m) => {
-      el.muted = !m
-      return !m
-    })
+    pauseMusic()
+    setMusicOn(false)
+    setMuted(false)
   }
 
   const filtered = useMemo(() => {
@@ -227,31 +240,17 @@ export default function App() {
   }, [allowed, filtered, lang])
 
   const resultLabel = filtered.length === 1 ? t.results : t.resultsPlural
-  const musicLabel = !musicOn ? '▶ Música' : muted ? '♪ Off' : '♪ On'
 
   return (
     <>
-      <audio
-        ref={audioRef}
-        src={AUDIO_SRC}
-        preload="auto"
-        loop
-        playsInline
-      />
+      <MusicFab playing={musicOn} muted={muted} onToggle={onMusicToggle} />
+      {musicErr ? <p className="music__err">{musicErr}</p> : null}
 
       {!allowed ? (
         <AgeGate t={t} lang={lang} onLang={setLang} onConfirm={confirmAge} />
       ) : (
         <div className="page">
           <div className="atmos" aria-hidden="true" />
-
-          <button
-            type="button"
-            className={`music__btn ${musicOn && !muted ? 'music__btn--on' : ''}`}
-            onClick={toggleMusic}
-          >
-            {musicLabel}
-          </button>
 
           <header className="top">
             <a className="top__brand" href="#topo">
@@ -276,6 +275,11 @@ export default function App() {
                 <strong>Ciudad del Este</strong>, <strong>Foz do Iguaçu</strong>,
                 Puerto Iguazú & Hernandarias. {t.heroLeadAfter}
               </p>
+              {!musicOn ? (
+                <button type="button" className="btn btn--solid hero__music" onClick={startMusic}>
+                  ▶ Tocar música
+                </button>
+              ) : null}
               <div className="hero__meta">
                 <span>
                   {PROFILES.length} {t.metaProfiles}
