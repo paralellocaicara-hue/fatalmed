@@ -1,0 +1,62 @@
+:root {
+  --velvet: #1a050c;
+  --velvet-2: #2a0a14;
+  --stage: #0d0307;
+  --rouge: #c41e3a;
+  --rouge-hot: #ff2d55;
+  --bordeaux: #6b0f1a;
+  --gold: #e8c87a;
+  --gold-deep: #b8923e;
+  --cream: #f7e8d0;
+  --smoke: #c4a99a;
+  --line: rgba(232, 200, 122, 0.22);
+  --glass: rgba(42, 10, 20, 0.72);
+  --font-display: 'Playfair Display', 'Times New Roman', serif;
+  --font-script: 'Great Vibes', cursive;
+  --font-body: 'Cormorant Garamond', Georgia, serif;
+  --font-ui: 'Outfit', system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-body);
+  background: var(--stage);
+  color: var(--cream);
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+a,
+input {
+  font-family: var(--font-ui);
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
